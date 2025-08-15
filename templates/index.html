@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulasi Angsuran</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-light">
+    <div class="container py-5">
+      <!-- Logo Atas -->
+      <div class="text-center mb-4">
+        <img src="/static/astra-logo@2x.png" alt="Logo" class="img-fluid" />
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-md-6">
+          <div class="card shadow-lg border-0 rounded-3">
+            <div class="card-header bg-primary text-white text-center">
+              <h4 class="mb-0">Simulasi Angsuran</h4>
+            </div>
+            <div class="card-body p-4">
+              <form method="post">
+                <div class="mb-3">
+                  <label class="form-label">Nama Customer</label>
+                  <div class="input-group">
+                    <span class="input-group-text">Name</span>
+                    <input
+                      type="text"
+                      name="namecstm"
+                      class="form-control"
+                      placeholder="Masukkan nama customer"
+                      autofocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <!-- Pokok Pinjaman -->
+                <div class="mb-3">
+                  <label class="form-label">Pokok Pinjaman</label>
+                  <div class="input-group">
+                    <span class="input-group-text">Rp</span>
+                    <input
+                      type="number"
+                      name="pokok"
+                      class="form-control"
+                      placeholder="Masukkan jumlah pinjaman"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <!-- Bunga -->
+                <div class="mb-3">
+                  <label class="form-label">Bunga Tahunan</label>
+                  <div class="input-group">
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="bunga"
+                      class="form-control"
+                      placeholder="Contoh: 10"
+                      required
+                    />
+                    <span class="input-group-text">%</span>
+                  </div>
+                </div>
+
+                <!-- Tenor -->
+                <div class="mb-3">
+                  <label class="form-label">Tenor</label>
+                  <div class="input-group">
+                    <input
+                      type="number"
+                      name="tenor"
+                      class="form-control"
+                      placeholder="Contoh: 12"
+                      required
+                    />
+                    <span class="input-group-text">bulan</span>
+                  </div>
+                </div>
+
+                <!-- Tanggal Pencairan -->
+                <div class="mb-3">
+                  <label class="form-label">Tanggal Pencairan</label>
+                  <input
+                    type="date"
+                    name="start_date"
+                    class="form-control"
+                    required
+                  />
+                </div>
+
+                <!-- Tanggal Pembayaran Pertama -->
+                <div class="mb-3">
+                  <label class="form-label">Tanggal Pembayaran Pertama</label>
+                  <input
+                    type="date"
+                    name="first_due_date"
+                    class="form-control"
+                  />
+                  <div class="form-text">
+                    (Opsional. Jika tidak diisi, otomatis 1 bulan setelah
+                    pencairan)
+                  </div>
+                </div>
+
+                <!-- Metode -->
+                <div class="mb-3">
+                  <label class="form-label">Metode</label>
+                  <select name="metode" class="form-select" required>
+                    <option value="anuitas">Anuitas</option>
+                    <option value="efektif">Efektif</option>
+                    <option value="flat">Flat</option>
+                  </select>
+                </div>
+
+                <!-- Tombol -->
+                <div class="d-grid">
+                  <button type="submit" class="btn btn-primary btn-lg">
+                    Hitung Simulasi
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer dengan Logo -->
+      <footer class="text-center mt-5">
+        <p class="text-muted small mb-0">
+          © 2025 Simulasi Angsuran | Made By Raden
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
