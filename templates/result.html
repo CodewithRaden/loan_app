@@ -37,6 +37,18 @@
 
       <div class="table-responsive">
         {% for table in tables %} {{ table|safe }} {% endfor %}
+        <div class="mt-4">
+          <table class="table table-bordered">
+            <tr>
+              <th>Total Bunga Dibayar</th>
+              <td class="text-end">{{ summary.total_bunga }}</td>
+            </tr>
+            <tr>
+              <th>Total Angsuran</th>
+              <td class="text-end">{{ summary.total_angsuran }}</td>
+            </tr>
+          </table>
+        </div>
       </div>
       <a href="/" class="btn btn-primary mb-3">Kembali</a>
       <a href="/export_excel" class="btn btn-success mb-3">Export ke Excel</a>

@@ -44,7 +44,7 @@ def build_schedule(
             / ((1 + i_bulanan) ** tenor - 1)
         )
 
-        # bulan-1: total pakai bunga aktual; pokok pakai bunga standar supaya sisa konsisten
+        # bulan-1
         bunga1_std = sisa * i_bulanan
         pokok1 = pmt - bunga1_std
         tambahan_bunga = bunga1_actual - bunga1_std
@@ -54,7 +54,7 @@ def build_schedule(
         sisa -= pokok1
         data.append([1, jatuh1, pokok1, bunga1_actual, total1, max(sisa, 0)])
 
-        # bulan 2..n (normal)
+        # bulan 2..n
         for bulan in range(2, tenor + 1):
             jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
                 "%d %b %Y"
@@ -79,7 +79,7 @@ def build_schedule(
     elif metode == "efektif":
         cicilan_pokok = pokok / tenor
 
-        # bulan-1: bunga actual day count
+        # bulan-1
         bunga1 = sisa * bunga_tahunan * (selisih_hari / 360.0)
         total1 = cicilan_pokok + bunga1
         jatuh1 = first_due_date.strftime("%d %b %Y")
@@ -147,7 +147,15 @@ def build_schedule(
             "Sisa Pokok",
         ],
     )
-    return df, penjelasan
+
+    # summary totals
+    summary = {
+        "total_pokok": df["Angsuran Pokok"].sum(),
+        "total_bunga": df["Bunga"].sum(),
+        "total_angsuran": df["Total Angsuran"].sum(),
+    }
+
+    return df, penjelasan, summary
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -155,7 +163,6 @@ def index():
     if request.method == "POST":
         # ambil input
         pokok_str = request.form["pokok"]
-        # bersihkan pemisah ribuan (misal "2.300.000.000")
         pokok = float(pokok_str.replace(".", "").replace(",", ""))
 
         bunga_tahunan = float(request.form["bunga"]) / 100.0
@@ -178,7 +185,6 @@ def index():
             else start_date + relativedelta(months=1)
         )
 
-        # simpan HANYA parameter ke session (aman di cookie)
         session["params"] = {
             "pokok": pokok,
             "bunga_tahunan": bunga_tahunan,
@@ -189,15 +195,16 @@ def index():
             "namecstm": namecstm,
         }
 
-        # bangun jadwal untuk tampilan
-        df, penjelasan = build_schedule(
+        df, penjelasan, summary = build_schedule(
             pokok, bunga_tahunan, tenor, metode, start_date, first_due_date
         )
 
-        # format angka untuk HTML (jangan simpan versi terformat ke session!)
+        # format angka untuk HTML
         df_show = df.copy()
         for col in ["Angsuran Pokok", "Bunga", "Total Angsuran", "Sisa Pokok"]:
             df_show[col] = df_show[col].map(fmt)
+
+        summary_fmt = {k: fmt(v) for k, v in summary.items()}
 
         return render_template(
             "result.html",
@@ -210,9 +217,9 @@ def index():
             ],
             title="Hasil Simulasi",
             penjelasan=penjelasan,
+            summary=summary_fmt,
         )
 
-    # GET
     return render_template("index.html")
 
 
@@ -220,10 +227,8 @@ def index():
 def export_excel():
     params = session.get("params")
     if not params:
-        # kalau session hilang (serverless, tab baru, dsb), arahkan balik ke form
         return redirect(url_for("index"))
 
-    # rebuild jadwal dari parameter
     pokok = float(params["pokok"])
     bunga_tahunan = float(params["bunga_tahunan"])
     tenor = int(params["tenor"])
@@ -231,17 +236,15 @@ def export_excel():
     start_date = datetime.strptime(params["start_date"], "%Y-%m-%d")
     first_due_date = datetime.strptime(params["first_due_date"], "%Y-%m-%d")
 
-    df, _ = build_schedule(
+    df, _, _ = build_schedule(
         pokok, bunga_tahunan, tenor, metode, start_date, first_due_date
     )
 
-    # tulis ke memory (BytesIO) -> aman di Vercel
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Simulasi Angsuran")
     output.seek(0)
 
-    # nama file aman
     namecstm = params.get("namecstm", "Customer")
     safe_name = "".join(c if c.isalnum() else "_" for c in namecstm)
 
