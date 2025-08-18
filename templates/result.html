@@ -28,9 +28,6 @@
   <body>
     <div class="container mt-4">
       <h2 class="mb-3">{{ title }}</h2>
-      <a href="/" class="btn btn-primary mb-3">Kembali</a>
-      <a href="/export_excel" class="btn btn-success mb-3">Export ke Excel</a>
-
       <!-- Tambahan penjelasan -->
       {% if penjelasan %}
       <div class="alert alert-info">
@@ -41,6 +38,17 @@
       <div class="table-responsive">
         {% for table in tables %} {{ table|safe }} {% endfor %}
       </div>
+      <a href="/" class="btn btn-primary mb-3">Kembali</a>
+      <a href="/export_excel" class="btn btn-success mb-3">Export ke Excel</a>
     </div>
+    <br />
+    <footer class="text-center mt-5">
+      <p class="text-muted small mb-0">
+        © 2025 Simulasi Angsuran | Made By Raden
+      </p>
+    </footer>
+    <br />
+    <br />
+    <br />
   </body>
 </html>
