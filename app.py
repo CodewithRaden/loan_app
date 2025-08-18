@@ -5,20 +5,25 @@ from dateutil.relativedelta import relativedelta
 import io
 
 app = Flask(__name__)
-app.secret_key = "random-secret"  # wajib untuk session
+app.secret_key = "random-secret"
+
+
+def fmt(x: float) -> str:
+    """Format angka ke gaya Indonesia tanpa desimal."""
+    return f"{x:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
+        # -------- Ambil input --------
         pokok = float(request.form["pokok"])
-        bunga_tahunan = float(request.form["bunga"]) / 100
+        bunga_tahunan = float(request.form["bunga"]) / 100.0
         tenor = int(request.form["tenor"])
         metode = request.form["metode"]
-
         session["namecstm"] = request.form.get("namecstm", "Customer")
 
-        # tanggal
+        # -------- Tanggal --------
         start_date_str = request.form.get("start_date")
         start_date = (
             datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -33,106 +38,131 @@ def index():
             else start_date + relativedelta(months=1)
         )
 
-        # suku bunga
-        bunga_bulanan = bunga_tahunan / 12
-
-        # day count: selisih aktual hari antara pencairan dan jatuh tempo 1
+        # -------- Parameter bunga --------
+        i_bulanan = bunga_tahunan / 12.0
         selisih_hari = (first_due_date - start_date).days
-        bunga_aktual_pertama = pokok * bunga_tahunan * selisih_hari / 360.0
-        bunga_bulanan_standar = (
-            pokok * bunga_bulanan
-        )  # untuk hitung pokok bulan-1 pada anuitas
-        tambahan_bunga_pertama = bunga_aktual_pertama - bunga_bulanan_standar
+        # bunga actual periode pertama dengan 30/360
+        bunga1_actual = pokok * bunga_tahunan * (selisih_hari / 360.0)
 
         data = []
-        # baris 0 (pencairan)
+        # baris bulan ke-0 (pencairan)
         data.append([0, start_date.strftime("%d %b %Y"), 0.0, 0.0, 0.0, pokok])
 
         sisa = pokok
+        penjelasan = ""
 
+        # ---------- METODE ANUITAS ----------
         if metode == "anuitas":
-            # PMT tetap
+            # PMT
             pmt = (
                 pokok
-                * (bunga_bulanan * (1 + bunga_bulanan) ** tenor)
-                / ((1 + bunga_bulanan) ** tenor - 1)
+                * (i_bulanan * (1 + i_bulanan) ** tenor)
+                / ((1 + i_bulanan) ** tenor - 1)
             )
 
-            for bulan in range(1, tenor + 1):
-                jatuh_tempo = (
-                    first_due_date + relativedelta(months=bulan - 1)
-                ).strftime("%d %b %Y")
+            # Bulan-1 (pakai bunga actual untuk total, tapi pokok dihitung dari bunga standar agar sisa sama)
+            bunga1_std = sisa * i_bulanan
+            pokok1 = pmt - bunga1_std
+            tambahan_bunga = bunga1_actual - bunga1_std
+            total1 = pmt + tambahan_bunga
 
-                if bulan == 1:
-                    # porsi pokok dihitung pakai bunga bulanan standar (agar sisa pokok sama dgn jadwal normal)
-                    pokok_bayar = pmt - (sisa * bunga_bulanan)
-                    bunga_tampil = bunga_aktual_pertama
-                    total_angsuran = pmt + tambahan_bunga_pertama
-                else:
-                    bunga_tampil = sisa * bunga_bulanan
-                    pokok_bayar = pmt - bunga_tampil
-                    total_angsuran = pmt
+            jatuh1 = first_due_date.strftime("%d %b %Y")
+            sisa -= pokok1
+            data.append([1, jatuh1, pokok1, bunga1_actual, total1, max(sisa, 0)])
 
-                sisa -= pokok_bayar
-                data.append(
-                    [
-                        bulan,
-                        jatuh_tempo,
-                        pokok_bayar,
-                        bunga_tampil,
-                        total_angsuran,
-                        max(sisa, 0),
-                    ]
+            # Bulan-2 .. n (normal)
+            for bulan in range(2, tenor + 1):
+                jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
+                    "%d %b %Y"
                 )
+                bunga = sisa * i_bulanan
+                pokok_bayar = pmt - bunga
+                sisa -= pokok_bayar
+                data.append([bulan, jatuh, pokok_bayar, bunga, pmt, max(sisa, 0)])
 
+            # Penjelasan rinci
+            penjelasan = (
+                "🔹 Metode Anuitas\n"
+                f"i bulanan = {bunga_tahunan:.2%} / 12 = {i_bulanan:.6f}\n"
+                f"PMT = P × [ i(1+i)^n / ((1+i)^n - 1) ] = {fmt(pmt)}\n\n"
+                f"Periode pertama (selisih {selisih_hari} hari):\n"
+                f"  Bunga actual = {fmt(pokok)} × {bunga_tahunan:.2%} × ({selisih_hari}/360) = {fmt(bunga1_actual)}\n"
+                f"  Bunga standar = {fmt(pokok)} × {i_bulanan:.6f} = {fmt(bunga1_std)}\n"
+                f"  Pokok dibayar = PMT − Bunga standar = {fmt(pmt)} − {fmt(bunga1_std)} = {fmt(pokok1)}\n"
+                f"  Tambahan (penyesuaian hari) = {fmt(bunga1_actual)} − {fmt(bunga1_std)} = {fmt(tambahan_bunga)}\n"
+                f"  Total angsuran bln-1 = PMT + Tambahan = {fmt(pmt)} + {fmt(tambahan_bunga)} = {fmt(total1)}\n"
+            )
+
+        # ---------- METODE EFEKTIF ----------
         elif metode == "efektif":
             cicilan_pokok = pokok / tenor
-            for bulan in range(1, tenor + 1):
-                jatuh_tempo = (
-                    first_due_date + relativedelta(months=bulan - 1)
-                ).strftime("%d %b %Y")
-                if bulan == 1:
-                    bunga_tampil = sisa * bunga_tahunan * selisih_hari / 360.0
-                else:
-                    bunga_tampil = sisa * bunga_bulanan
-                total_angsuran = cicilan_pokok + bunga_tampil
-                sisa -= cicilan_pokok
-                data.append(
-                    [
-                        bulan,
-                        jatuh_tempo,
-                        cicilan_pokok,
-                        bunga_tampil,
-                        total_angsuran,
-                        max(sisa, 0),
-                    ]
-                )
 
+            # Bulan-1: bunga actual day count
+            bunga1 = sisa * bunga_tahunan * (selisih_hari / 360.0)
+            total1 = cicilan_pokok + bunga1
+            jatuh1 = first_due_date.strftime("%d %b %Y")
+            sisa -= cicilan_pokok
+            data.append([1, jatuh1, cicilan_pokok, bunga1, total1, max(sisa, 0)])
+
+            # Bulan-2 .. n
+            for bulan in range(2, tenor + 1):
+                jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
+                    "%d %b %Y"
+                )
+                bunga = sisa * i_bulanan
+                total = cicilan_pokok + bunga
+                sisa -= cicilan_pokok
+                data.append([bulan, jatuh, cicilan_pokok, bunga, total, max(sisa, 0)])
+
+            penjelasan = (
+                "🔹 Metode Efektif\n"
+                f"Cicilan pokok tetap = P / n = {fmt(pokok)} / {tenor} = {fmt(cicilan_pokok)}\n\n"
+                f"Periode pertama (selisih {selisih_hari} hari):\n"
+                f"  Bunga = {fmt(pokok)} × {bunga_tahunan:.2%} × ({selisih_hari}/360) = {fmt(bunga1)}\n"
+                f"  Total angsuran bln-1 = {fmt(cicilan_pokok)} + {fmt(bunga1)} = {fmt(total1)}\n"
+                f"Bulan berikutnya: bunga = sisa × {i_bulanan:.6f} dan total menurun seiring sisa pokok menurun."
+            )
+
+        # ---------- METODE FLAT ----------
         elif metode == "flat":
             cicilan_pokok = pokok / tenor
-            bunga_flat_bulanan = pokok * bunga_bulanan
-            for bulan in range(1, tenor + 1):
-                jatuh_tempo = (
-                    first_due_date + relativedelta(months=bulan - 1)
-                ).strftime("%d %b %Y")
-                if bulan == 1:
-                    bunga_tampil = pokok * bunga_tahunan * selisih_hari / 360.0
-                else:
-                    bunga_tampil = bunga_flat_bulanan
-                total_angsuran = cicilan_pokok + bunga_tampil
+            bunga_flat_bulanan = pokok * i_bulanan
+
+            # Bulan-1: bunga actual day count
+            bunga1 = pokok * bunga_tahunan * (selisih_hari / 360.0)
+            total1 = cicilan_pokok + bunga1
+            jatuh1 = first_due_date.strftime("%d %b %Y")
+            sisa -= cicilan_pokok
+            data.append([1, jatuh1, cicilan_pokok, bunga1, total1, max(sisa, 0)])
+
+            # Bulan-2 .. n: tetap
+            for bulan in range(2, tenor + 1):
+                jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
+                    "%d %b %Y"
+                )
                 sisa -= cicilan_pokok
+                total = cicilan_pokok + bunga_flat_bulanan
                 data.append(
                     [
                         bulan,
-                        jatuh_tempo,
+                        jatuh,
                         cicilan_pokok,
-                        bunga_tampil,
-                        total_angsuran,
+                        bunga_flat_bulanan,
+                        total,
                         max(sisa, 0),
                     ]
                 )
 
-        # DataFrame & simpan ke session
+            penjelasan = (
+                "🔹 Metode Flat\n"
+                f"Cicilan pokok tetap = P / n = {fmt(pokok)} / {tenor} = {fmt(cicilan_pokok)}\n"
+                f"Bunga bulanan tetap (mulai bln-2) = P × i_bulanan = {fmt(pokok)} × {i_bulanan:.6f} = {fmt(bunga_flat_bulanan)}\n\n"
+                f"Periode pertama (selisih {selisih_hari} hari):\n"
+                f"  Bunga actual = {fmt(pokok)} × {bunga_tahunan:.2%} × ({selisih_hari}/360) = {fmt(bunga1)}\n"
+                f"  Total angsuran bln-1 = {fmt(cicilan_pokok)} + {fmt(bunga1)} = {fmt(total1)}"
+            )
+
+        # --------- Buat DataFrame dan simpan ke session ---------
         df = pd.DataFrame(
             data,
             columns=[
@@ -146,12 +176,9 @@ def index():
         )
         session["data"] = df.to_dict(orient="list")
 
-        # format rupiah untuk tampilan
-        def format_indo(x):
-            return f"{x:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
+        # --------- Format tampilan rupiah ---------
         for col in ["Angsuran Pokok", "Bunga", "Total Angsuran", "Sisa Pokok"]:
-            df[col] = df[col].map(format_indo)
+            df[col] = df[col].map(fmt)
 
         return render_template(
             "result.html",
@@ -163,8 +190,10 @@ def index():
                 )
             ],
             title="Hasil Simulasi",
+            penjelasan=penjelasan,
         )
 
+    # GET
     return render_template("index.html")
 
 
@@ -179,11 +208,9 @@ def export_excel():
         df.to_excel(writer, index=False, sheet_name="Simulasi Angsuran")
     output.seek(0)
 
-    # ambil nama customer dari session
+    # nama file
     namecstm = session.get("namecstm", "Customer")
-    safe_name = "".join(
-        c if c.isalnum() else "_" for c in namecstm
-    )  # biar aman untuk filename
+    safe_name = "".join(c if c.isalnum() else "_" for c in namecstm)
 
     return send_file(
         output,

@@ -30,6 +30,14 @@
       <h2 class="mb-3">{{ title }}</h2>
       <a href="/" class="btn btn-primary mb-3">Kembali</a>
       <a href="/export_excel" class="btn btn-success mb-3">Export ke Excel</a>
+
+      <!-- Tambahan penjelasan -->
+      {% if penjelasan %}
+      <div class="alert alert-info">
+        <pre style="white-space: pre-wrap">{{ penjelasan }}</pre>
+      </div>
+      {% endif %}
+
       <div class="table-responsive">
         {% for table in tables %} {{ table|safe }} {% endfor %}
       </div>

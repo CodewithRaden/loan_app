@@ -50,6 +50,9 @@
                       class="form-control"
                       placeholder="Masukkan jumlah pinjaman"
                       required
+                      min="50000000"
+                      oninvalid="this.setCustomValidity('Minimal pinjaman Rp 50.000.000')"
+                      oninput="this.setCustomValidity('')"
                     />
                   </div>
                 </div>
