@@ -45,16 +45,16 @@
                   <div class="input-group">
                     <span class="input-group-text">Rp</span>
                     <input
-                      type="number"
+                      type="text"
+                      id="pokok"
                       name="pokok"
                       class="form-control"
                       placeholder="Masukkan jumlah pinjaman"
                       required
-                      min="50000000"
-                      oninvalid="this.setCustomValidity('Minimal pinjaman Rp 50.000.000')"
-                      oninput="this.setCustomValidity('')"
+                      oninput="formatRupiah(this)"
                     />
                   </div>
+                  <div class="form-text">Minimal Rp 50.000.000</div>
                 </div>
 
                 <!-- Bunga -->
@@ -143,4 +143,20 @@
       </footer>
     </div>
   </body>
+  <script>
+    function formatRupiah(input) {
+      // Hapus semua karakter non angka
+      let value = input.value.replace(/\D/g, "");
+
+      // Cek minimal
+      if (value && parseInt(value) < 50000000) {
+        input.setCustomValidity("Minimal pinjaman Rp 50.000.000");
+      } else {
+        input.setCustomValidity("");
+      }
+
+      // Format angka dengan titik
+      input.value = new Intl.NumberFormat("id-ID").format(value);
+    }
+  </script>
 </html>

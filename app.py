@@ -17,7 +17,9 @@ def fmt(x: float) -> str:
 def index():
     if request.method == "POST":
         # -------- Ambil input --------
-        pokok = float(request.form["pokok"])
+        pokok_str = request.form["pokok"]
+        pokok_str = pokok_str.replace(".", "")  # hapus titik pemisah ribuan
+        pokok = float(pokok_str)
         bunga_tahunan = float(request.form["bunga"]) / 100.0
         tenor = int(request.form["tenor"])
         metode = request.form["metode"]
