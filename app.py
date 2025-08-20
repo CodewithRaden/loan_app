@@ -21,10 +21,6 @@ def build_schedule(
     start_date: datetime,
     first_due_date: datetime,
 ):
-    """
-    Bangun DataFrame jadwal angsuran + string penjelasan,
-    sesuai logika yang kamu pakai di halaman hasil.
-    """
     i_bulanan = bunga_tahunan / 12.0
     selisih_hari = max(0, (first_due_date - start_date).days)  # guard
     bunga1_actual = pokok * bunga_tahunan * (selisih_hari / 360.0)
@@ -34,7 +30,6 @@ def build_schedule(
     data.append([0, start_date.strftime("%d %b %Y"), 0.0, 0.0, 0.0, pokok])
 
     sisa = pokok
-    penjelasan = ""
 
     if metode == "anuitas":
         # PMT anuitas
@@ -64,18 +59,6 @@ def build_schedule(
             sisa -= pokok_bayar
             data.append([bulan, jatuh, pokok_bayar, bunga, pmt, max(sisa, 0)])
 
-        penjelasan = (
-            "🔹 Metode Anuitas\n"
-            f"i bulanan = {bunga_tahunan:.2%} / 12 = {i_bulanan:.6f}\n"
-            f"PMT = P × [ i(1+i)^n / ((1+i)^n - 1) ] = {fmt(pmt)}\n\n"
-            f"Periode pertama (selisih {selisih_hari} hari):\n"
-            f"  Bunga actual = {fmt(pokok)} × {bunga_tahunan:.2%} × ({selisih_hari}/360) = {fmt(bunga1_actual)}\n"
-            f"  Bunga standar = {fmt(pokok)} × {i_bulanan:.6f} = {fmt(bunga1_std)}\n"
-            f"  Pokok dibayar = PMT − Bunga standar = {fmt(pmt)} − {fmt(bunga1_std)} = {fmt(pokok1)}\n"
-            f"  Tambahan (penyesuaian hari) = {fmt(bunga1_actual)} − {fmt(bunga1_std)} = {fmt(tambahan_bunga)}\n"
-            f"  Total angsuran bln-1 = PMT + Tambahan = {fmt(pmt)} + {fmt(tambahan_bunga)} = {fmt(total1)}\n"
-        )
-
     elif metode == "efektif":
         cicilan_pokok = pokok / tenor
 
@@ -94,15 +77,6 @@ def build_schedule(
             total = cicilan_pokok + bunga
             sisa -= cicilan_pokok
             data.append([bulan, jatuh, cicilan_pokok, bunga, total, max(sisa, 0)])
-
-        penjelasan = (
-            "🔹 Metode Efektif\n"
-            f"Cicilan pokok tetap = P / n = {fmt(pokok)} / {tenor} = {fmt(cicilan_pokok)}\n\n"
-            f"Periode pertama (selisih {selisih_hari} hari):\n"
-            f"  Bunga = {fmt(pokok)} × {bunga_tahunan:.2%} × ({selisih_hari}/360) = {fmt(bunga1)}\n"
-            f"  Total angsuran bln-1 = {fmt(cicilan_pokok)} + {fmt(bunga1)} = {fmt(total1)}\n"
-            f"Bulan berikutnya: bunga = sisa × {i_bulanan:.6f} dan total menurun seiring sisa pokok menurun."
-        )
 
     elif metode == "flat":
         cicilan_pokok = pokok / tenor
@@ -123,15 +97,6 @@ def build_schedule(
             data.append(
                 [bulan, jatuh, cicilan_pokok, bunga_flat_bulanan, total, max(sisa, 0)]
             )
-
-        penjelasan = (
-            "🔹 Metode Flat\n"
-            f"Cicilan pokok tetap = P / n = {fmt(pokok)} / {tenor} = {fmt(cicilan_pokok)}\n"
-            f"Bunga bulanan tetap (mulai bln-2) = P × i_bulanan = {fmt(pokok)} × {i_bulanan:.6f} = {fmt(bunga_flat_bulanan)}\n\n"
-            f"Periode pertama (selisih {selisih_hari} hari):\n"
-            f"  Bunga actual = {fmt(pokok)} × {bunga_tahunan:.2%} × ({selisih_hari}/360) = {fmt(bunga1)}\n"
-            f"  Total angsuran bln-1 = {fmt(cicilan_pokok)} + {fmt(bunga1)} = {fmt(total1)}"
-        )
 
     else:
         raise ValueError("Metode tidak dikenal")
@@ -155,7 +120,7 @@ def build_schedule(
         "total_angsuran": df["Total Angsuran"].sum(),
     }
 
-    return df, penjelasan, summary
+    return df, summary
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -195,7 +160,7 @@ def index():
             "namecstm": namecstm,
         }
 
-        df, penjelasan, summary = build_schedule(
+        df, summary = build_schedule(
             pokok, bunga_tahunan, tenor, metode, start_date, first_due_date
         )
 
@@ -216,7 +181,6 @@ def index():
                 )
             ],
             title="Hasil Simulasi",
-            penjelasan=penjelasan,
             summary=summary_fmt,
         )
 
