@@ -323,7 +323,7 @@ def export_pdf():
 
     # HEADER pakai Table biar sejajar dengan tabel utama
     header_data = [
-        [Paragraph("<b>Lampiran - II</b>", header_bold)],
+        [Paragraph("<b>Perhitungan Tabel Angsuran</b>", header_bold)],
         [Paragraph(f"{namecstm}", header_style_big)],
         [
             Paragraph(
