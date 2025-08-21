@@ -90,18 +90,43 @@ def build_schedule(
         )
 
     elif metode == "flat":
+        # Pokok dicicil rata; bunga flat per bulan konstan
         cicilan_pokok = pokok / tenor
-        bunga_flat_bulanan = pokok * (bunga_tahunan / 12)  # bunga per bulan tetap
-        total_bunga = bunga_flat_bulanan * tenor  # total bunga
+        bunga_bulanan = pokok * (bunga_tahunan / 12.0)
 
-        for bulan in range(1, tenor + 1):
+        # Penyesuaian (bagi hasil prorata) untuk periode pertama
+        if start_date.day == first_due_date.day:
+            selisih_hari = 30  # 30/360 jika tanggal sama
+        else:
+            selisih_hari = max(0, (first_due_date - start_date).days)  # actual/360
+        adj = pokok * bunga_tahunan * (selisih_hari / 360.0)  # penyesuaian bunga
+
+        sisa = pokok
+
+        # --- Bulan 1: total lebih besar karena + adj; adj ditaruh ke POKOK ---
+        jatuh1 = first_due_date.strftime("%d %b %Y")
+        pokok1 = cicilan_pokok + adj
+        bunga1 = bunga_bulanan
+        total1 = pokok1 + bunga1
+        sisa -= pokok1
+        data.append([1, jatuh1, pokok1, bunga1, total1, sisa])
+
+        # --- Bulan 2..(n-1): konstan ---
+        for bulan in range(2, tenor):
             jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
                 "%d %b %Y"
             )
             sisa -= cicilan_pokok
-            bunga = bunga_flat_bulanan
-            total = cicilan_pokok + bunga
-            data.append([bulan, jatuh, cicilan_pokok, bunga, total, sisa])
+            total = cicilan_pokok + bunga_bulanan
+            data.append([bulan, jatuh, cicilan_pokok, bunga_bulanan, total, sisa])
+
+        # --- Bulan n (terakhir): pokok dikurangi adj, bunga ditambah adj; total kembali konstan ---
+        jatuhN = (first_due_date + relativedelta(months=tenor - 1)).strftime("%d %b %Y")
+        pokokN = max(0.0, cicilan_pokok - adj)
+        bungaN = bunga_bulanan + adj
+        totalN = cicilan_pokok + bunga_bulanan
+        sisa -= pokokN
+        data.append([tenor, jatuhN, pokokN, bungaN, totalN, sisa])
 
     else:
         raise ValueError("Metode tidak dikenal")
@@ -333,11 +358,13 @@ def export_pdf():
         [Paragraph(f"Jumlah Pembiayaan : Rp. {pokok:,.2f}", header_style_big)],
         [
             Paragraph(
-                f"Tingkat Pengembalian : {bunga_tahunan*100:.2f} %", header_style_big
+                f"Tingkat Pengembalian : {bunga_tahunan*100:.2f} % {'effective p.a' if metode=='efektif' else 'flat p.a'}",
+                header_style_big,
             )
         ],
         [Paragraph(f"Periode Pembiayaan : {tenor} bulan", header_style_big)],
     ]
+
     header_table = Table(header_data, colWidths=[table_total_width])
     header_table.setStyle(
         TableStyle(
