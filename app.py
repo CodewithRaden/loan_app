@@ -16,7 +16,8 @@ app.secret_key = "random-secret"
 
 
 def fmt(x: float) -> str:
-    """Format angka ke gaya Indonesia tanpa desimal."""
+    if abs(x) < 0.5:  # toleransi setengah rupiah
+        x = 0
     return f"{x:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
@@ -90,9 +91,8 @@ def build_schedule(
 
     elif metode == "flat":
         cicilan_pokok = pokok / tenor
-        # Total bunga target = pokok × bunga_tahunan (sesuai tabel Excel)
-        total_bunga = pokok * bunga_tahunan
-        bunga_flat_bulanan = total_bunga / tenor  # ini yg dibagi rata
+        bunga_flat_bulanan = pokok * (bunga_tahunan / 12)  # bunga per bulan tetap
+        total_bunga = bunga_flat_bulanan * tenor  # total bunga
 
         for bulan in range(1, tenor + 1):
             jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
