@@ -57,17 +57,49 @@
                   <div class="form-text">Minimal Rp 50.000.000</div>
                 </div>
 
+                <!-- Metode -->
+                <div class="mb-3">
+                  <label class="form-label">Metode</label>
+                  <select
+                    name="metode"
+                    id="metode"
+                    class="form-select"
+                    required
+                  >
+                    <option value="efektif">Efektif</option>
+                    <option value="flat">Flat</option>
+                  </select>
+                </div>
+
                 <!-- Bunga -->
                 <div class="mb-3">
-                  <label class="form-label">Bunga Tahunan</label>
+                  <label class="form-label" id="label_bunga"
+                    >Bunga Tahunan (Efektif)</label
+                  >
                   <div class="input-group">
                     <input
                       type="number"
                       step="0.01"
+                      id="bunga"
                       name="bunga"
                       class="form-control"
                       placeholder="Contoh: 10"
                       required
+                      oninput="hitungRate()"
+                    />
+                    <span class="input-group-text">%</span>
+                  </div>
+                </div>
+
+                <!-- Hasil Konversi -->
+                <div class="mb-3">
+                  <label class="form-label" id="label_hasil">Rate Flat</label>
+                  <div class="input-group">
+                    <input
+                      type="text"
+                      id="rate_hasil"
+                      class="form-control"
+                      readonly
                     />
                     <span class="input-group-text">%</span>
                   </div>
@@ -107,20 +139,6 @@
                     name="first_due_date"
                     class="form-control"
                   />
-                  <div class="form-text">
-                    (Opsional. Jika tidak diisi, otomatis 1 bulan setelah
-                    pencairan)
-                  </div>
-                </div>
-
-                <!-- Metode -->
-                <div class="mb-3">
-                  <label class="form-label">Metode</label>
-                  <select name="metode" class="form-select" required>
-                    <option value="anuitas">Anuitas</option>
-                    <option value="efektif">Efektif</option>
-                    <option value="flat">Flat</option>
-                  </select>
                 </div>
 
                 <!-- Tombol -->
@@ -143,20 +161,47 @@
       </footer>
     </div>
   </body>
+
   <script>
     function formatRupiah(input) {
-      // Hapus semua karakter non angka
       let value = input.value.replace(/\D/g, "");
-
-      // Cek minimal
       if (value && parseInt(value) < 50000000) {
         input.setCustomValidity("Minimal pinjaman Rp 50.000.000");
       } else {
         input.setCustomValidity("");
       }
-
-      // Format angka dengan titik
       input.value = new Intl.NumberFormat("id-ID").format(value);
     }
+
+    function hitungRate() {
+      let bunga = parseFloat(document.getElementById("bunga").value);
+      let metode = document.getElementById("metode").value;
+      let labelHasil = document.getElementById("label_hasil");
+      let hasilField = document.getElementById("rate_hasil");
+      let labelBunga = document.getElementById("label_bunga");
+
+      if (!isNaN(bunga)) {
+        if (metode === "efektif") {
+          let flat = bunga / 1.81;
+          labelBunga.textContent = "Bunga Tahunan (Efektif)";
+          labelHasil.textContent = "Rate Flat";
+          hasilField.value = flat.toFixed(2);
+        } else {
+          let efektif = bunga * 1.81;
+          labelBunga.textContent = "Bunga Tahunan (Flat)";
+          labelHasil.textContent = "Rate Efektif";
+          hasilField.value = efektif.toFixed(2);
+        }
+      } else {
+        hasilField.value = "";
+      }
+    }
+
+    document.getElementById("metode").addEventListener("change", () => {
+      // reset input & hasil saat ganti metode
+      document.getElementById("bunga").value = "";
+      document.getElementById("rate_hasil").value = "";
+      hitungRate();
+    });
   </script>
 </html>

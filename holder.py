@@ -4,12 +4,6 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from decimal import Decimal, ROUND_HALF_UP
 import io
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT
 
 app = Flask(__name__)
 app.secret_key = "random-secret"
@@ -53,7 +47,7 @@ def build_schedule(
     # ----------------------
     # PERHITUNGAN ANGSURAN
     # ----------------------
-    if metode == "efektif":
+    if metode == "anuitas":
         pmt = (
             pokok
             * (i_bulanan * (1 + i_bulanan) ** tenor)
@@ -88,20 +82,39 @@ def build_schedule(
             f" Total angsuran bln-1 = PMT + Tambahan = {fmt(pmt)} + {fmt(tambahan_bunga)} = {fmt(total1)}\n"
         )
 
+    elif metode == "efektif":
+        cicilan_pokok = pokok / tenor
+        bunga1 = sisa * bunga_tahunan * (selisih_hari / 360.0)
+        total1 = cicilan_pokok + bunga1
+        jatuh1 = first_due_date.strftime("%d %b %Y")
+        sisa -= cicilan_pokok
+        data.append([1, jatuh1, cicilan_pokok, bunga1, total1, sisa])
+
+        for bulan in range(2, tenor + 1):
+            jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
+                "%d %b %Y"
+            )
+            bunga = sisa * i_bulanan
+            total = cicilan_pokok + bunga
+            sisa -= cicilan_pokok
+            data.append([bulan, jatuh, cicilan_pokok, bunga, total, sisa])
+
     elif metode == "flat":
         cicilan_pokok = pokok / tenor
-        # Total bunga target = pokok × bunga_tahunan (sesuai tabel Excel)
-        total_bunga = pokok * bunga_tahunan
-        bunga_flat_bulanan = total_bunga / tenor  # ini yg dibagi rata
+        bunga_flat_bulanan = pokok * i_bulanan
+        bunga1 = pokok * bunga_tahunan * (selisih_hari / 360.0)
+        total1 = cicilan_pokok + bunga1
+        jatuh1 = first_due_date.strftime("%d %b %Y")
+        sisa -= cicilan_pokok
+        data.append([1, jatuh1, cicilan_pokok, bunga1, total1, sisa])
 
-        for bulan in range(1, tenor + 1):
+        for bulan in range(2, tenor + 1):
             jatuh = (first_due_date + relativedelta(months=bulan - 1)).strftime(
                 "%d %b %Y"
             )
             sisa -= cicilan_pokok
-            bunga = bunga_flat_bulanan
-            total = cicilan_pokok + bunga
-            data.append([bulan, jatuh, cicilan_pokok, bunga, total, sisa])
+            total = cicilan_pokok + bunga_flat_bulanan
+            data.append([bulan, jatuh, cicilan_pokok, bunga_flat_bulanan, total, sisa])
 
     else:
         raise ValueError("Metode tidak dikenal")
@@ -113,7 +126,7 @@ def build_schedule(
         data,
         columns=[
             "Bulan",
-            "Tanggal",
+            "Tanggal Jatuh Tempo",
             "Angsuran Pokok",
             "Bunga",
             "Total Angsuran",
@@ -204,6 +217,15 @@ def index():
             df_show[col] = df_show[col].map(fmt)
 
         summary_fmt = {k: fmt(v) for k, v in summary.items()}
+        totals = {
+            "Bulan": "Total",
+            "Tanggal Jatuh Tempo": "",
+            "Angsuran Pokok": fmt(df["Angsuran Pokok"].apply(rupiah_round).sum()),
+            "Bunga": fmt(df["Bunga"].apply(rupiah_round).sum()),
+            "Total Angsuran": fmt(df["Total Angsuran"].apply(rupiah_round).sum()),
+            "Sisa Pokok": "",
+        }
+        df_show = pd.concat([df_show, pd.DataFrame([totals])], ignore_index=True)
 
         return render_template(
             "result.html",
@@ -222,16 +244,8 @@ def index():
     return render_template("index.html")
 
 
-def format_number(val, is_bulan=False):
-    if is_bulan:  # khusus untuk kolom Bulan
-        return str(int(val))
-    if isinstance(val, (int, float)):
-        return f"{val:,.2f}"
-    return str(val)
-
-
-@app.route("/export_pdf")
-def export_pdf():
+@app.route("/export_excel")
+def export_excel():
     params = session.get("params")
     if not params:
         return redirect(url_for("index"))
@@ -242,132 +256,24 @@ def export_pdf():
     metode = params["metode"]
     start_date = datetime.strptime(params["start_date"], "%Y-%m-%d")
     first_due_date = datetime.strptime(params["first_due_date"], "%Y-%m-%d")
-    namecstm = params.get("namecstm", "Customer")
 
-    # Ambil data schedule
     df, _, _ = build_schedule(
         pokok, bunga_tahunan, tenor, metode, start_date, first_due_date
     )
 
-    # Rename kolom
-    df = df.rename(
-        columns={
-            "No": "Bulan",
-            "Tanggal": "Tanggal",
-            "Jumlah Pokok": "Angsuran Pokok",
-            "Jumlah Tingkat Pengembalian": "Bunga",
-            "Jumlah Pembayaran": "Total Angsuran",
-            "Saldo Pembiayaan": "Sisa Pokok",
-        }
-    )
-
-    # Format isi tabel
-    data = [df.columns.tolist()]
-    for _, row in df.iterrows():
-        formatted_row = []
-        for col, v in zip(df.columns, row.values):
-            if col == "Bulan":
-                formatted_row.append(format_number(v, is_bulan=True))
-            else:
-                formatted_row.append(format_number(v))
-        data.append(formatted_row)
-
-    # Tambah baris total
-    total_row = ["T o t a l", ""]
-    for col in df.columns[2:]:
-        if col == "Sisa Pokok":
-            total_row.append("")
-        elif pd.api.types.is_numeric_dtype(df[col]):
-            total_row.append(format_number(df[col].sum()))
-        else:
-            total_row.append("")
-    data.append(total_row)
-
-    # === PDF ===
     output = io.BytesIO()
-
-    col_widths = [40, 100, 100, 100, 100, 100]
-    table_total_width = sum(col_widths)
-
-    # Atur margin kiri supaya tabel dan header rata kiri
-    doc = SimpleDocTemplate(
-        output,
-        pagesize=A4,
-        leftMargin=20,
-        rightMargin=30,
-        topMargin=20,
-        bottomMargin=18,
-    )
-
-    elements = []
-    styles = getSampleStyleSheet()
-
-    # HEADER pakai Table biar sejajar dengan tabel utama
-    header_data = [
-        [Paragraph("<b>Lampiran - II</b>", styles["Normal"])],
-        [Paragraph(f"{namecstm}", styles["Normal"])],
-        [Spacer(1, 6)],
-        [
-            Paragraph(
-                "Pembayaran Pokok Pembiayaan dan Tingkat Pengembalian", styles["Normal"]
-            )
-        ],
-        [Paragraph(f"Jumlah Pembiayaan : Rp. {pokok:,.2f}", styles["Normal"])],
-        [
-            Paragraph(
-                f"Tingkat Pengembalian : {bunga_tahunan*100:.2f} %", styles["Normal"]
-            )
-        ],
-        [Paragraph(f"Periode Pembiayaan : {tenor} bulan", styles["Normal"])],
-    ]
-    header_table = Table(header_data, colWidths=[table_total_width])
-    header_table.setStyle(
-        TableStyle(
-            [
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-    elements.append(header_table)
-    elements.append(Spacer(1, 12))
-
-    # TABEL utama
-    table = Table(data, repeatRows=1, colWidths=col_widths)
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),  # header
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                ("ALIGN", (0, 0), (-1, 0), "CENTER"),  # header rata tengah
-                ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
-                ("ALIGN", (0, 0), (0, -1), "CENTER"),  # kolom bulan center
-                ("ALIGN", (1, 0), (1, -1), "CENTER"),  # kolom tanggal kiri
-                ("ALIGN", (2, 0), (-1, -1), "RIGHT"),  # angka kanan
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-                # Style khusus baris total
-                ("BACKGROUND", (0, -1), (-1, -1), colors.whitesmoke),
-                ("SPAN", (0, -1), (1, -1)),
-                ("ALIGN", (0, -1), (1, -1), "CENTER"),
-                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ]
-        )
-    )
-
-    elements.append(table)
-    doc.build(elements)
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Simulasi Angsuran")
     output.seek(0)
 
+    namecstm = params.get("namecstm", "Customer")
     safe_name = "".join(c if c.isalnum() else "_" for c in namecstm)
+
     return send_file(
         output,
-        download_name=f"TABEL_ANGSURAN_{safe_name}.pdf",
+        download_name=f"TABEL_ANGSURAN_{safe_name}.xlsx",
         as_attachment=True,
-        mimetype="application/pdf",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
