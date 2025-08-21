@@ -301,24 +301,40 @@ def export_pdf():
 
     elements = []
     styles = getSampleStyleSheet()
+    header_style_big = ParagraphStyle(
+        "header_big",
+        parent=styles["Normal"],
+        fontSize=12,  # ukuran font
+        leading=14,  # jarak antar baris
+        spaceAfter=6,  # jarak bawah tiap paragraf
+        fontName="Helvetica-Bold",
+    )
+
+    header_bold = ParagraphStyle(
+        "header_bold",
+        parent=styles["Normal"],
+        fontSize=12,
+        leading=14,
+        spaceAfter=6,
+        fontName="Helvetica-Bold",
+    )
 
     # HEADER pakai Table biar sejajar dengan tabel utama
     header_data = [
-        [Paragraph("<b>Lampiran - II</b>", styles["Normal"])],
-        [Paragraph(f"{namecstm}", styles["Normal"])],
-        [Spacer(1, 6)],
+        [Paragraph("<b>Lampiran - II</b>", header_bold)],
+        [Paragraph(f"{namecstm}", header_style_big)],
         [
             Paragraph(
-                "Pembayaran Pokok Pembiayaan dan Tingkat Pengembalian", styles["Normal"]
+                "Pembayaran Pokok Pembiayaan dan Tingkat Pengembalian", header_style_big
             )
         ],
-        [Paragraph(f"Jumlah Pembiayaan : Rp. {pokok:,.2f}", styles["Normal"])],
+        [Paragraph(f"Jumlah Pembiayaan : Rp. {pokok:,.2f}", header_style_big)],
         [
             Paragraph(
-                f"Tingkat Pengembalian : {bunga_tahunan*100:.2f} %", styles["Normal"]
+                f"Tingkat Pengembalian : {bunga_tahunan*100:.2f} %", header_style_big
             )
         ],
-        [Paragraph(f"Periode Pembiayaan : {tenor} bulan", styles["Normal"])],
+        [Paragraph(f"Periode Pembiayaan : {tenor} bulan", header_style_big)],
     ]
     header_table = Table(header_data, colWidths=[table_total_width])
     header_table.setStyle(
