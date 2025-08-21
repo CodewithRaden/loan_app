@@ -223,10 +223,12 @@ def index():
 
 
 def format_number(val, is_bulan=False):
-    if is_bulan:  # khusus untuk kolom Bulan
+    if is_bulan:
         return str(int(val))
     if isinstance(val, (int, float)):
-        return f"{val:,.2f}"
+        if abs(val) < 0.5:
+            val = 0
+        return f"{val:,.0f}"  # tanpa desimal
     return str(val)
 
 
